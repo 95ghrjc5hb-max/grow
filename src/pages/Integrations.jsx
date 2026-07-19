@@ -1,0 +1,244 @@
+import React, { useState, useEffect } from "react";
+import { MessageCircle, Instagram, Phone, Wifi, WifiOff, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
+
+const platforms = [
+  {
+    key: "messenger",
+    name: "Facebook Messenger",
+    desc: "Connect your Facebook Page officially via Meta OAuth to sync and reply to Messenger DMs.",
+    icon: MessageCircle,
+    color: "blue",
+    gradient: "from-blue-500/20 to-blue-600/5",
+    border: "border-blue-500/20",
+    text: "text-blue-400",
+    btn: "bg-blue-500 hover:bg-blue-600",
+  },
+  {
+    key: "instagram",
+    name: "Instagram Business",
+    desc: "Connect your Instagram Business Profile via Meta secure login to manage DMs and story replies.",
+    icon: Instagram,
+    color: "pink",
+    gradient: "from-pink-500/20 to-purple-500/5",
+    border: "border-pink-500/20",
+    text: "text-pink-400",
+    btn: "bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600",
+  },
+  {
+    key: "whatsapp",
+    name: "WhatsApp Business API",
+    desc: "Connect your official WhatsApp Business API credentials to handle automated customer support.",
+    icon: Phone,
+    color: "green",
+    gradient: "from-green-500/20 to-green-600/5",
+    border: "border-green-500/20",
+    text: "text-green-400",
+    btn: "bg-green-500 hover:bg-green-600",
+  },
+];
+
+export default function Integrations() {
+  const [channels, setChannels] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const { toast } = useToast();
+
+  // WhatsApp Credentials State
+  const [waCredentials, setWaCredentials] = useState({
+    phoneNumber: "",
+    phoneNumberId: "",
+    businessAccountId: "",
+    accessToken: ""
+  });
+
+  // Fetch existing integration configurations from backend
+  useEffect(() => {
+    fetchActiveIntegrations();
+  }, []);
+
+  const fetchActiveIntegrations = async () => {
+    try {
+      setLoading(true);
+      // Replace with your actual SaaS backend API endpoint
+      const res = await fetch("/api/integrations");
+      const data = await res.json();
+      setChannels(data || []);
+    } catch (error) {
+      console.error("Failed to load integrations", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getChannel = (platform) => channels.find((c) => c.platform === platform);
+
+  // META OFFICIAL OAUTH HANDLER (Facebook & Instagram)
+  const handleMetaOAuth = (platformKey) => {
+    const appId = "YOUR_META_APP_ID"; // Replace with your real Meta Developer App ID
+    const redirectUri = `${window.location.origin}/api/auth/meta/callback`;
+    const scope = "pages_show_list,pages_messaging,instagram_basic,instagram_manage_messages,pages_read_engagement";
+    
+    // Official Meta Dialog URL
+    const oauthUrl = `https://www.facebook.com/v20.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code&state=${platformKey}`;
+    
+    // Open secure popup window
+    const popup = window.open(oauthUrl, "Connect with Meta", "width=600,height=650,status=yes,resizable=yes");
+
+    // Listen for the callback message from backend/popup window
+    const handlePopupMessage = async (event) => {
+      if (event.origin !== window.location.origin) return;
+      
+      if (event.data?.status === "success") {
+        toast({ title: `${platformKey === 'messenger' ? 'Facebook' : 'Instagram'} connected successfully!` });
+        fetchActiveIntegrations(); // Refresh view
+        window.removeEventListener("message", handlePopupMessage);
+      }
+    };
+    
+    window.addEventListener("message", handlePopupMessage);
+  };
+
+  const handleDisconnect = async (platformKey) => {
+    try {
+      await fetch(`/api/integrations/${platformKey}`, { method: "DELETE" });
+      toast({ title: `${platformKey} disconnected successfully.` });
+      fetchActiveIntegrations();
+    } catch (error) {
+      toast({ title: "Failed to disconnect integration.", variant: "destructive" });
+    }
+  };
+
+  const handleConnectClick = (platformKey) => {
+    const existing = getChannel(platformKey);
+    if (existing && existing.status === "connected") {
+      handleDisconnect(platformKey);
+      return;
+    }
+
+    if (platformKey === "whatsapp") {
+      setShowWhatsAppModal(true);
+    } else {
+      handleMetaOAuth(platformKey);
+    }
+  };
+
+  // WHATSAPP API SUBMIT HANDLER
+  const handleWhatsAppSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/integrations/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(waCredentials),
+      });
+
+      if (res.ok) {
+        toast({ title: "WhatsApp Business API connected successfully!" });
+        setShowWhatsAppModal(false);
+        setWaCredentials({ phoneNumber: "", phoneNumberId: "", businessAccountId: "", accessToken: "" });
+        fetchActiveIntegrations();
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      toast({ title: "Failed to connect WhatsApp. Verify credentials.", variant: "destructive" });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="w-8 h-8 border-4 border-teal-500/20 border-t-teal-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-white">Integrations</h1>
+        <p className="text-slate-400 mt-1">Connect your verified business channels to handle production omnichannel communications.</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {platforms.map((p) => {
+          const channel = getChannel(p.key);
+          const connected = channel?.status === "connected";
+          const Icon = p.icon;
+
+          return (
+            <div key={p.key} className={`rounded-xl border bg-gradient-to-br p-6 transition-all hover:scale-[1.01] ${p.gradient} ${p.border}`}>
+              <div className="flex items-start justify-between mb-5">
+                <div className={`p-3 rounded-xl bg-white/5`}>
+                  <Icon className={`w-7 h-7 ${p.text}`} />
+                </div>
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${connected ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
+                  {connected ? (
+                    <>
+                      <Wifi className="w-3 h-3" /> Connected
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="w-3 h-3" /> Disconnected
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <h3 className="text-lg font-semibold text-white mb-2">{p.name}</h3>
+              <p className="text-sm text-slate-400 mb-6 min-h-[40px]">{p.desc}</p>
+
+              {connected && channel?.account_name && (
+                <p className="text-xs text-slate-500 mb-4">
+                  Account: <span className={p.text}>{channel.account_name}</span>
+                </p>
+              )}
+
+              <Button onClick={() => handleConnectClick(p.key)} className={`w-full gap-2 text-white ${connected ? "bg-red-500/15 hover:bg-red-500/25 border border-red-500/20 text-red-400" : p.btn}`}>
+                {connected ? (
+                  "Disconnect Channel"
+                ) : (
+                  <>
+                    <ExternalLink className="w-4 h-4" /> Official Meta Connect
+                  </>
+                )}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* WHATSAPP CREDENTIAL MODAL */}
+      <Dialog open={showWhatsAppModal} onOpenChange={setShowWhatsAppModal}>
+        <DialogContent className="bg-slate-900 border border-slate-800 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connect WhatsApp Business Cloud API</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleWhatsAppSubmit} className="space-y-4 mt-2">
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Display Phone Number</label>
+              <Input required value={waCredentials.phoneNumber} onChange={(e) => setWaCredentials({...waCredentials, phoneNumber: e.target.value})} placeholder="+8801XXXXXXXXX" className="bg-slate-950 border-slate-800" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Phone Number ID</label>
+              <Input required value={waCredentials.phoneNumberId} onChange={(e) => setWaCredentials({...waCredentials, phoneNumberId: e.target.value})} placeholder="Ex: 1092837465623" className="bg-slate-950 border-slate-800" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">WhatsApp Business Account ID</label>
+              <Input required value={waCredentials.businessAccountId} onChange={(e) => setWaCredentials({...waCredentials, businessAccountId: e.target.value})} placeholder="Ex: 9876543210123" className="bg-slate-950 border-slate-800" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Permanent Access Token</label>
+              <Input required value={waCredentials.accessToken} onChange={(e) => setWaCredentials({...waCredentials, accessToken: e.target.value})} type="password" placeholder="EAABw..." className="bg-slate-950 border-slate-800" />
+            </div>
+            <Button type="submit" className="w-full bg-green-500 hover:bg-green-600 text-white font-medium">Save & Initialize Webhook</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

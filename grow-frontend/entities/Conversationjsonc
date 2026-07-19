@@ -1,0 +1,62 @@
+{
+  "name": "Conversation",
+  "type": "object",
+  "properties": {
+    "customer_name": {
+      "type": "string"
+    },
+    "customer_social_id": {
+      "type": "string"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "messenger",
+        "instagram",
+        "whatsapp"
+      ]
+    },
+    "tag": {
+      "type": "string",
+      "enum": [
+        "lead",
+        "interested",
+        "customer",
+        "vip"
+      ],
+      "default": "lead"
+    },
+    "ai_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "last_message": {
+      "type": "string"
+    },
+    "last_message_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sender": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "time": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "customer_name",
+    "channel"
+  ]
+}

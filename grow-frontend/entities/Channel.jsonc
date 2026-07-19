@@ -1,0 +1,32 @@
+{
+  "name": "Channel",
+  "type": "object",
+  "properties": {
+    "platform": {
+      "type": "string",
+      "enum": [
+        "messenger",
+        "instagram",
+        "whatsapp"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "disconnected"
+      ],
+      "default": "disconnected"
+    },
+    "account_name": {
+      "type": "string"
+    },
+    "connected_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "platform"
+  ]
+}
