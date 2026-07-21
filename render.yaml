@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: saas-backend
+    env: node
+    rootDir: saas-backend
+    buildCommand: npm install
+    startCommand: node server.js
