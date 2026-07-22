@@ -196,15 +196,16 @@ app.put('/api/v1/orders/:id', async (req, res) => {
 // Serve static assets if in production
 app.use(express.static(path.join(process.cwd(), '../grow-frontend/dist')));
 
+// Serve static assets if in production
+app.use(express.static(path.join(__dirname, 'dist')));
+
 // Any request that doesn't match the API routes will load the frontend
 app.get(/(.*)/, (req, res) => {
   if (req.path.startsWith('/api')) {
     return res.status(404).json({ success: false, error: "API route not found" });
   }
-  res.sendFile(path.join(process.cwd(), '../grow-frontend/dist', 'index.html'));
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
-
-
 
 // ==========================================
 // 7. GLOBAL ERROR HANDLER & SERVER BOOT
