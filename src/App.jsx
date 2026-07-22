@@ -11,7 +11,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
-import AppLayout from "@/components/Layout/AppLayout";
+import AppLayout from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import UnifiedInbox from "@/pages/UnifiedInbox";
 import BotTraining from "@/pages/BotTraining";
