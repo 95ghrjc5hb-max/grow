@@ -121,12 +121,15 @@ export default function Register() {
     });
   };
 
-  const getStrengthColor = () => {
-    if (strength === 0) return "bg-slate-800";
-    if (strength === 1) return "bg-rose-500";
-    if (strength === 2) return "bg-amber-500";
-    if (strength >= 3) return "bg-emerald-500";
-  };
+ // Advanced & Futuristic Password Strength Color Logic
+const getStrengthColor = () => {
+  if (strength === 1) return "bg-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.8)] border-rose-400/50";
+  if (strength === 2) return "bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)] border-amber-300/50";
+  if (strength === 3) return "bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)] border-cyan-300/50";
+  if (strength >= 4) return "bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,1)] border-emerald-300/50";
+  return "bg-slate-800/80 border-slate-700/50";
+};
+
 
   // OTP Verification View (Clean & Premium)
   if (showOtp) {

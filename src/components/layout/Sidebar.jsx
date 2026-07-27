@@ -26,7 +26,7 @@ export default function Sidebar({ onCloseMobile }) {
   // Sign out handler function
   const handleSignOut = () => {
     localStorage.removeItem("grow_secure_token");
-    navigate("/register");
+    window.location.href = "/register"; 
   };
 
   return (
@@ -78,18 +78,32 @@ export default function Sidebar({ onCloseMobile }) {
           })}
         </nav>
       </div>
+      {/* Footer Section: Privacy, Terms & Sign Out */}
+      <div className="pt-5 border-t border-white/10 flex flex-col gap-4">
+        
+        {/* Futuristic Privacy & Terms */}
+        <div className="flex justify-center gap-6 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+          <Link to="/privacy" className="relative group hover:text-teal-400 transition-colors duration-300">
+            Privacy
+            <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-teal-400 transition-all duration-300 group-hover:w-full"></span>
+          </Link>
+          <span className="text-slate-700">•</span>
+          <Link to="/terms" className="relative group hover:text-teal-400 transition-colors duration-300">
+            Terms
+            <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-teal-400 transition-all duration-300 group-hover:w-full"></span>
+          </Link>
+        </div>
 
-      {/* Footer Sign Out Action */}
-      <div className="pt-4 border-t border-white/10 flex flex-col gap-3">
-        {/* Sign Out Button */}
+        {/* Advanced Glowing Sign Out Button */}
         <button
           onClick={handleSignOut}
-          className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-300 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20"
+          className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 text-slate-400 bg-white/5 border border-white/5 backdrop-blur-sm hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/30 hover:shadow-[0_0_20px_rgba(244,63,94,0.15)] group"
         >
-          <LogOut className="w-5 h-5 transition-transform duration-300 group-hover:-translate-x-0.5" />
+          <LogOut className="w-5 h-5 transition-transform duration-300 group-hover:-translate-x-1" />
           <span>Sign Out</span>
         </button>
       </div>
+
     </div>
   );
 }

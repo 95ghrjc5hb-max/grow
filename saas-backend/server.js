@@ -27,10 +27,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'GROW_APP_SECURE_KEY_2026';
 // 2. ADVANCED SECURITY & MIDDLEWARES
 // ==========================================
 //app.use(helmet()); 
-app.use(cors({
-  origin: '*', 
-  credentials: true
-}));
+app.use(cors());
 app.use(express.json({ limit: '10kb' })); 
 app.use(morgan('dev')); 
 
@@ -192,6 +189,7 @@ app.put('/api/v1/orders/:id', async (req, res) => {
   } catch (error) {
     res.status(400).json({ success: false, error: 'Payload configuration execution rejected.' });
   }
+  
 });
 // Serve static assets if in production
 app.use(express.static(path.join(__dirname, '../dist')));
