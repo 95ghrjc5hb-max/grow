@@ -18,6 +18,8 @@ import BotTraining from "@/pages/BotTraining";
 import OrderManagement from "@/pages/OrderManagement";
 import Integrations from "@/pages/Integrations";
 import SettingsPage from "@/pages/SettingsPage";
+import PrivacyPolicy from "./components/PrivacyPolicy";
+import Terms from "./components/Terms";
 
 export default function App() {
   return (
@@ -40,6 +42,8 @@ export default function App() {
               <Route path="orders" element={<OrderManagement />} />
               <Route path="integrations" element={<Integrations />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="privacy" element={<PrivacyPolicy />} />
+              <Route path="terms" element={<Terms />} />
             </Route>
 
             {/* Fallback System */}

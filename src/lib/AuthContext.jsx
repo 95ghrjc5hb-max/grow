@@ -1,147 +1,140 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { Grow } from '@/api/GrowClient';
-import { appParams } from '@/lib/app-params';
+import React, { createContext, useState, useEffect, useContext } from 'react';
 
 const AuthContext = createContext();
+
+// Base URL for your backend API
+const API_URL = 'http://localhost:5000/api';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
-  const [authError, setAuthError] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [appPublicSettings, setAppPublicSettings] = useState(null); // Contains only { id, public_settings }
 
+  // 🛡️ 1. Token Verification on App Load (Security Check)
   useEffect(() => {
-    checkAppState();
-  }, []);
-
-  const checkAppState = async () => {
-    try {
-      setIsLoadingPublicSettings(true);
-      setAuthError(null);
-      
-      // First, check app public settings (with token if available)
-      // This will tell us if auth is required, user not registered, etc.
-      const appClient = Grow;
+    const checkUserAuth = async () => {
       try {
-        const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
-        setAppPublicSettings(publicSettings);
+        const token = localStorage.getItem('grow_secure_token');
         
-        // If we got the app public settings successfully, check if user is authenticated
-        if (appParams.token) {
-          await checkUserAuth();
-        } else {
+        if (!token) {
           setIsLoadingAuth(false);
-          setIsAuthenticated(false);
-          setAuthChecked(true);
+          return;
         }
-        setIsLoadingPublicSettings(false);
-      } catch (appError) {
-        console.error('App state check failed:', appError);
-        
-        // Handle app-level errors
-        if (appError.status === 403 && appError.data?.extra_data?.reason) {
-          const reason = appError.data.extra_data.reason;
-          if (reason === 'auth_required') {
-            setAuthError({
-              type: 'auth_required',
-              message: 'Authentication required'
-            });
-          } else if (reason === 'user_not_registered') {
-            setAuthError({
-              type: 'user_not_registered',
-              message: 'User not registered for this app'
-            });
-          } else {
-            setAuthError({
-              type: reason,
-              message: appError.message
-            });
+
+        // Verify token by hitting '/api/v1/auth/me' route in your server
+        const response = await fetch(`${API_URL}/v1/auth/me`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
+        });
+
+        const data = await response.json();
+
+        // Grant access if the token is valid
+        if (response.ok && data.status === 'success') {
+          setUser(data.data.user);
+          setIsAuthenticated(true);
         } else {
-          setAuthError({
-            type: 'unknown',
-            message: appError.message || 'Failed to load app'
-          });
+          // Clear token if it is expired or invalid
+          localStorage.removeItem('grow_secure_token');
+          setUser(null);
+          setIsAuthenticated(false);
         }
-        setIsLoadingPublicSettings(false);
+      } catch (error) {
+        console.error('Security token verification failed:', error);
+        localStorage.removeItem('grow_secure_token');
+      } finally {
         setIsLoadingAuth(false);
       }
-    } catch (error) {
-      console.error('Unexpected error:', error);
-      setAuthError({
-        type: 'unknown',
-        message: error.message || 'An unexpected error occurred'
-      });
-      setIsLoadingPublicSettings(false);
-      setIsLoadingAuth(false);
-    }
-  };
+    };
 
-  const checkUserAuth = async () => {
+    checkUserAuth();
+  }, []);
+
+  // 🚀 2. Advanced Login API Integration
+  const login = async (email, password) => {
     try {
-      // Now check if the user is authenticated
-      setIsLoadingAuth(true);
-      const currentUser = await Grow.auth.me();
-      setUser(currentUser);
-      setIsAuthenticated(true);
-      setIsLoadingAuth(false);
-      setAuthChecked(true);
-    } catch (error) {
-      console.error('User auth check failed:', error);
-      setIsLoadingAuth(false);
-      setIsAuthenticated(false);
-      setAuthChecked(true);
-      
-      // If user auth fails, it might be an expired token
-      if (error.status === 401 || error.status === 403) {
-        setAuthError({
-          type: 'auth_required',
-          message: 'Authentication required'
-        });
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.token) {
+        // Secure Token Storage
+        localStorage.setItem('grow_secure_token', data.token); 
+        // Save user data received from the server
+        setUser({ email, ...data }); 
+        setIsAuthenticated(true);
+        return { success: true };
+      } else {
+        return { success: false, message: data.error || 'Invalid credentials' };
       }
+    } catch (error) {
+      return { success: false, message: 'Authentication server error.' };
     }
   };
 
-  const logout = (shouldRedirect = true) => {
+  // ⚡ 3. Advanced Signup API Integration
+  const register = async (email, password) => {
+    try {
+      const response = await fetch(`${API_URL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Return success message for redirection to login or dashboard
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, message: data.error || 'Registration failed' };
+      }
+    } catch (error) {
+      return { success: false, message: 'Server pipeline error.' };
+    }
+  };
+
+  // 🔒 4. Secure Logout Function
+  const logout = () => {
+    localStorage.removeItem('grow_secure_token');
     setUser(null);
     setIsAuthenticated(false);
-    
-    if (shouldRedirect) {
-      // Use the SDK's logout method which handles token cleanup and redirect
-      Grow.auth.logout(window.location.href);
-    } else {
-      // Just remove the token without redirect
-      Grow.auth.logout();
-    }
-  };
-
-  const navigateToLogin = () => {
-    // Use the SDK's redirectToLogin method
-    Grow.auth.redirectToLogin(window.location.href);
+    // Auto-redirect to login page after logout
+    window.location.href = '/login'; 
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated,
       isLoadingAuth,
-      isLoadingPublicSettings,
-      authError,
-      appPublicSettings,
-      authChecked,
-      logout,
-      navigateToLogin,
-      checkUserAuth,
-      checkAppState
+      login,
+      register,
+      logout
     }}>
-      {children}
+      {/* Futuristic Loading State: Displays a sleek spinner during backend verification */}
+      {isLoadingAuth ? (
+        <div className="flex items-center justify-center min-h-screen bg-[#0d111a]">
+          <div className="relative">
+            <div className="h-16 w-16 rounded-full border-t-4 border-b-4 border-teal-400 animate-spin"></div>
+            <div className="mt-4 text-teal-400 font-semibold tracking-widest text-sm animate-pulse">SECURING...</div>
+          </div>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };
 
+// Custom Hook for easier usage in components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
