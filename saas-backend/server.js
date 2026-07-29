@@ -9,6 +9,8 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import nodemailer from 'nodemailer';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 
 // Setup paths for ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -23,11 +25,30 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'GROW_APP_SECURE_KEY_2026';
 
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
 // ==========================================
 // 2. ADVANCED SECURITY & MIDDLEWARES
 // ==========================================
-//app.use(helmet()); 
-app.use(cors());
+
+// 1. CORS must always be placed BEFORE helmet
+app.use(cors({
+  origin: true, // Automatically accepts request from http://localhost:5173
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// 2. Security headers (Placed after CORS)
+app.use(helmet());
+
+
 app.use(express.json({ limit: '10kb' })); 
 app.use(morgan('dev')); 
 
@@ -57,8 +78,11 @@ mongoose.connect(process.env.MONGODB_URI)
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
+  otp: { type: String }, // Stores generated OTP
+  isVerified: { type: Boolean, default: false }, // Tracks verification status
   createdAt: { type: Date, default: Date.now }
 });
+
 const User = mongoose.model('User', userSchema);
 
 const conversationSchema = new mongoose.Schema({
@@ -106,22 +130,173 @@ const authenticateToken = (req, res, next) => {
 // ==========================================
 // 6. CENTRAL CORE API ENDPOINTS
 // ==========================================
-
+app.use('/api/dashboard', dashboardRoutes);
 app.post('/api/auth/signup', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const userExists = await User.findOne({ email });
-    if (userExists) return res.status(400).json({ success: false, error: 'Identity already exists in system.' });
 
+    // Check if user already exists
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Identity already exists in system.' 
+      });
+    }
+
+    // Generate dynamic 6-digit cryptographically secure OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Secure password hashing
     const hashedPassword = await bcrypt.hash(password, 12);
-    const newUser = new User({ email, password: hashedPassword });
+
+    // Register new user instance
+   const newUser = new User({
+  email,
+  password: hashedPassword,
+  otp: otpCode // <--- This saves OTP in MongoDB
+});
+
     await newUser.save();
 
-    res.status(201).json({ success: true, message: 'Account pipeline configured and secured.' });
+    // Futuristic, responsive HTML Email Template
+    const emailHtmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #090d16; color: #f3f4f6; margin: 0; padding: 40px 20px; }
+          .card { max-width: 480px; margin: 0 auto; background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 40px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); }
+          .brand { font-size: 18px; font-weight: 800; color: #6366f1; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px; text-align: center; }
+          .title { font-size: 22px; font-weight: 700; color: #ffffff; text-align: center; margin-bottom: 10px; }
+          .subtitle { font-size: 14px; color: #9ca3af; text-align: center; margin-bottom: 30px; line-height: 1.5; }
+          .otp-box { background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 30px; }
+          .otp-code { font-size: 38px; font-weight: 900; color: #818cf8; letter-spacing: 10px; font-family: monospace; }
+          .footer { font-size: 12px; color: #4b5563; text-align: center; border-top: 1px solid #1f2937; padding-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="brand">GROW APP CORE</div>
+          <div class="title">Security Verification</div>
+          <div class="subtitle">Use the system-generated authentication code below to complete your registration.</div>
+          <div class="otp-box">
+            <div class="otp-code">${otpCode}</div>
+          </div>
+          <div class="subtitle" style="font-size: 12px; margin-bottom: 0;">This code is confidential and strictly intended for this transaction.</div>
+          <div class="footer">
+            &copy; 2026 Grow App Platform. Automated Neural Network Dispatch.
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Dispatch Email via Nodemailer Transporter
+    await transporter.sendMail({
+      from: `"Grow App Core" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: '⚡ Action Required: Your 6-Digit Verification Code',
+      html: emailHtmlContent,
+    });
+
+    return res.status(201).json({ 
+      success: true, 
+      message: 'Account pipeline configured and verification code dispatched.' 
+    });
+
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Internal registration failure.' });
+    console.error('CRITICAL DISPATCH ERROR:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Internal registration failure.',
+      details: error.message 
+    });
   }
 });
+// Central Authentication - Advanced Neural Verification Endpoint
+app.post('/api/auth/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    // 1. Strict Input Validation & Sanitization
+    if (!email || !otp) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Malformed request: Missing identification or verification payload.' 
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const sanitizedOtp = otp.toString().trim();
+
+    // 2. Retrieve target user record securely
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Identity record not found in the system registry.' 
+      });
+    }
+
+    // 3. Prevent redundant verification pipeline execution
+    if (user.isVerified) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Identity pipeline is already verified and active.' 
+      });
+    }
+
+    // 4. Secure Verification Check (Strict Type Match)
+    if (!user.otp || user.otp !== sanitizedOtp) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Cryptographic verification failed: Invalid or expired token.' 
+      });
+    }
+
+    // 5. Atomic Update: Flush temporary OTP and set verified status
+    user.otp = undefined;
+    user.isVerified = true;
+    await user.save();
+
+    // 6. Issue standard authorization JWT token with explicit algorithm
+    const token = jwt.sign(
+      { 
+        userId: user._id, 
+        email: user.email 
+      }, 
+      JWT_SECRET, 
+      { 
+        expiresIn: '7d',
+        algorithm: 'HS256' 
+      }
+    );
+
+    // 7. Dispatch successful standard response
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Authentication protocol complete. Access granted.',
+      token,
+      data: {
+        user: { 
+          id: user._id, 
+          email: user.email,
+          isVerified: user.isVerified
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('CRITICAL VERIFICATION ENGINE FAILURE:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Internal system anomaly detected during verification.' 
+    });
+  }
+});
+
 
 app.post('/api/auth/login', async (req, res) => {
   try {
